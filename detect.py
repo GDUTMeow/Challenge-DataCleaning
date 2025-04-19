@@ -3,10 +3,10 @@ import base64
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from tqdm import tqdm
 import string
+import hashlib
 
 def is_name_valid(s):
     for char in s:
@@ -14,19 +14,24 @@ def is_name_valid(s):
             return False
     return True
 
-def validate_id(id_num):
-    if len(id_num) != 18:
-        return False
-    try:
-        check = calculate_id_check(id_num[:17])
-        return check == id_num[17]
-    except:
-        return False
-
 def calculate_id_check(code_17):
     weight = [7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2]
     total = sum(int(code_17[i]) * weight[i] for i in range(17))
     return '10X98765432'[total % 11]
+
+def validate_id(id_num, gender):
+    if len(id_num) != 18:
+        return False
+    try:
+        check = calculate_id_check(id_num[:17])
+        if check != id_num[17]:
+            return False
+        gender_digit = int(id_num[16])
+        if (gender == '男' and gender_digit % 2 == 0) or (gender == '女' and gender_digit % 2 != 0):
+            return False
+        return True
+    except:
+        return False
 
 def validate_username(username):
     return username[0].isalpha() and all(c.isalnum() for c in username)
@@ -39,10 +44,7 @@ def validate_signature(serial, username, password, id_num, sig):
         pub_key.verify(
             base64.b64decode(sig),
             message,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
+            padding.PKCS1v15(),
             hashes.SHA256()
         )
         return True
@@ -54,7 +56,7 @@ with open('polluted.csv', 'r', encoding='utf-8') as f:
     reader = csv.DictReader(f)
     with tqdm(total=len(list(reader)), desc="检测数据", unit="行") as pbar:
         f.seek(0)
-        reader.__next__()   # Skip header
+        reader.__next__()
         for row in reader:
             serial = row['序号']
             errors = []
@@ -62,8 +64,8 @@ with open('polluted.csv', 'r', encoding='utf-8') as f:
             if not is_name_valid(row['姓名']):
                 errors.append("姓名包含非中文字符")
                 
-            if not validate_id(row['身份证号']):
-                errors.append("身份证校验失败")
+            if not validate_id(row['身份证号'], row['性别']):
+                errors.append("身份证校验失败或性别不一致")
                 
             if not validate_username(row['用户名']):
                 errors.append("用户名格式错误")
@@ -72,9 +74,10 @@ with open('polluted.csv', 'r', encoding='utf-8') as f:
                 errors.append("签名验证失败")
                 
             if errors:
-                issues.append( (serial, errors) )
+                issues.append((serial, errors))
             pbar.update(1)
 
 for serial, errors in issues:
     print(f"序号 {serial} 存在问题：{'，'.join(errors)}")
 print(f"共有 {len(issues)} 条数据存在问题，分别为{'_'.join([str(i[0]) for i in issues])}")
+print("flag{" + hashlib.md5('_'.join([str(i[0]) for i in issues]).encode()).hexdigest() + "}")

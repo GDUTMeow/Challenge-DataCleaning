@@ -14,7 +14,7 @@ from cryptography.hazmat.backends import default_backend
 # 创建证书目录
 os.makedirs('cert', exist_ok=True)
 
-# 常见中文姓氏列表 (Common Chinese Surnames)
+# 常见中文姓氏列表
 surnames = [
     '王', '李', '张', '刘', '陈', '杨', '黄', '赵', '吴', '周', 
     '徐', '孙', '马', '朱', '胡', '郭', '何', '高', '林', '罗', 
@@ -33,10 +33,8 @@ surnames = [
     '牟', '霍', '甘', '左', '祝', '闵', '欧', '项', '洪'
 ]
 
-# 常见中文男性名字列表 (Common Chinese Male Names)
-# 包含单字名和双字名，涵盖不同年代的常用名。
+# 常见中文男性名字列表
 male_names = [
-    # 单字名
     '伟', '强', '磊', '军', '勇', '杰', '涛', '超', '刚', '浩', 
     '明', '亮', '俊', '峰', '鹏', '斌', '波', '凯', '健', '辉', 
     '平', '宇', '翔', '博', '航', '志', '霖', '鑫', '哲', '涵', 
@@ -44,7 +42,6 @@ male_names = [
     '飞', '康', '宁', '安', '文', '武', '旭', '升', '胜', '帅', 
     '智', '达', '彪', '栋', '楠', '锋', '锐', '铭', '森', '林', 
     '海', '江', '河', '山', '石', '金', '银', '松', '柏', '帆',
-    # 双字名
     '子轩', '浩宇', '宇轩', '俊杰', '伟强', '志强', '国强', '建国', 
     '建华', '文涛', '嘉豪', '浩然', '宇航', '鹏飞', '德华', '明辉', 
     '睿智', '宏伟', '泽宇', '晨阳', '鑫磊', '嘉俊', '世杰', '天宇', 
@@ -58,10 +55,8 @@ male_names = [
     '敏学', '彭祖', '庆云', '锐利', '升荣', '同和', '温茂', '信鸿'
 ]
 
-# 常见中文女性名字列表 (Common Chinese Female Names)
-# 包含单字名和双字名，涵盖不同年代的常用名。
+# 常见中文女性名字列表
 female_names = [
-    # 单字名
     '芳', '娜', '敏', '静', '丽', '娟', '艳', '玲', '婷', '慧', 
     '萍', '红', '丹', '雪', '颖', '菲', '薇', '莉', '霞', '琳', 
     '兰', '菊', '梅', '秀', '芬', '雅', '琼', '涵', '璇', '瑶', 
@@ -70,7 +65,6 @@ female_names = [
     '瑶', '怡', '婵', '雁', '蓓', '纨', '仪', '荷', '丹', '蓉', 
     '眉', '君', '琴', '蕊', '薇', '菁', '梦', '岚', '苑', '婕', 
     '馨', '瑗', '琰', '韵', '融', '园', '艺', '咏', '卿', '聪',
-    # 双字名
     '欣怡', '梓涵', '诗涵', '语嫣', '嘉欣', '雅静', '婉婷', '慧玲', 
     '美玲', '秀英', '淑芬', '瑞雪', '晓梅', '晓燕', '雨涵', '梦洁', 
     '佳怡', '欣妍', '紫萱', '依诺', '若曦', '思涵', '语桐', '瑾萱', 
@@ -102,8 +96,8 @@ def generate_id_number(gender):
     birth_date = datetime.now() - timedelta(days=random.randint(365*18, 365*60))
     birth_code = birth_date.strftime('%Y%m%d')
     seq_part = f'{random.randint(0, 999):03d}'
-    last_digit = random.choice([1,3,5,7,9] if gender == '男' else [0,2,4,6,8])
-    former_17 = f"{area_code}{birth_code}{seq_part[:2]}{last_digit}"
+    gender_digit = random.choice([1,3,5,7,9]) if gender == '男' else random.choice([0,2,4,6,8])
+    former_17 = f"{area_code}{birth_code}{seq_part[:2]}{gender_digit}"
     check_code = calculate_id_check(former_17)
     return former_17 + check_code
 
@@ -112,7 +106,7 @@ def generate_username():
 
 def generate_password():
     chars = string.ascii_letters + "".join([str(i) for i in range(10)]) + string.punctuation
-    chars.replace(',', '').replace("'", '').replace('"', '')
+    chars = chars.replace(',', '').replace("'", '').replace('"', '')
     return ''.join(random.choices(chars, k=random.randint(8, 16)))
 
 def generate_signature(username, password, id_num, serial):
@@ -129,16 +123,13 @@ def generate_signature(username, password, id_num, serial):
     message = f"{username}_{password}_{id_num}".encode()
     signature = private_key.sign(
         message,
-        padding.PSS(
-            mgf=padding.MGF1(hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH
-        ),
+        padding.PKCS1v15(),
         hashes.SHA256()
     )
     return base64.b64encode(signature).decode()
 
 data = []
-for i in tqdm(range(1, 2001)):
+for i in tqdm(range(1, 2001), desc="生成数据", unit="行"):
     gender = random.choice(['男', '女'])
     name = generate_name(gender).strip()
     id_num = generate_id_number(gender).strip()
